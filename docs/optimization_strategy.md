@@ -1309,17 +1309,19 @@ WMMA+DB:    90.1%      19.0%
 
 ### 14.1 完整优化历程（4096² FP32, RTX 3060 Ti）
 
-| Level | Kernel | 核心技术 | TFLOPS | 累计 | 源码文件 |
-|-------|--------|---------|--------|------|----------|
-| 1 | Naive | Global Memory | 1.07 | 1.0x | `src/gemm_kernels.cu` |
-| 2 | Shared | SMEM 32×32 | 1.32 | 1.2x | `src/gemm_kernels.cu` |
-| 3 | Float4 | LDG.128 | 1.32 | 1.2x | `src/gemm_kernels.cu` |
-| 4 | RegTile | 64 acc, TM=TN=8, LDS.128 | 7.78 | 7.3x | `src/gemm_kernels.cu` |
-| 5 | DB Async | cp.async DB, BK=16 | 8.00 | 7.5x | `src/gemm_kernels_async.cu` |
-| 6 | WMMA TC | TF32 Tensor Core, BK=16 | 7.95 | 7.4x | `src/gemm_kernels_tc.cu` |
-| 7 | LDS.128+LB | SMEM vec + bounds (跨 kernel) | 8.00 | 7.5x | `src/gemm_kernels*.cu` |
-| 8 | WMMA+DB | TC + cp.async, BK=16 | **8.10** | **7.6x** | `src/gemm_kernels_tc_async.cu` |
-| — | cuBLAS | Tensor Core + SASS | 11.0 | 10.3x | 参考 |
+> **注意**: Level 4-5 的当前 benchmark 值含 LDS.128（Level 7 优化已直接写入源码）。原始值（*）为应用 LDS.128 前的历史数据。
+
+| Level | Kernel | 核心技术 | TFLOPS (当前) | TFLOPS (原始*) | 累计 | 源码文件 |
+|-------|--------|---------|-------------|--------------|------|----------|
+| 1 | Naive | Global Memory | 1.07 | — | 1.0x | `src/gemm_kernels.cu` |
+| 2 | Shared | SMEM 32×32 | 1.32 | — | 1.2x | `src/gemm_kernels.cu` |
+| 3 | Float4 | LDG.128 | 1.32 | — | 1.2x | `src/gemm_kernels.cu` |
+| 4 | RegTile | 64 acc, TM=TN=8 | 7.78 | 7.19* | 7.3x | `src/gemm_kernels.cu` |
+| 5 | DB Async | cp.async DB, BK=16 | 8.00 | 7.54* | 7.5x | `src/gemm_kernels_async.cu` |
+| 6 | WMMA TC | TF32 Tensor Core, BK=16 | 7.95 | — | 7.4x | `src/gemm_kernels_tc.cu` |
+| 7 | LDS.128+LB | SMEM vec + bounds (跨 kernel 微调) | +2~6% | — | — | `src/gemm_kernels*.cu` |
+| 8 | WMMA+DB | TC + cp.async, BK=16 | **8.10** | — | **7.6x** | `src/gemm_kernels_tc_async.cu` |
+| — | cuBLAS | Tensor Core + SASS | 11.0 | — | 10.3x | 参考 |
 
 ### 14.2 优化路径全览（4096² FP32）
 
@@ -1337,15 +1339,15 @@ WMMA+DB:    90.1%      19.0%
 │  优化了 Global→Shared，但瓶颈不在此 — 经典 Amdahl 定律
 │
 ├─ Register Tiling (64 累加器, TM=TN=8, BK=8) ← breakthrough
-│  7.78 TFLOPS, 48.0% (+489%)
+│  7.19 TFLOPS, 44% (+450%)  现代码含 LDS.128 → 7.78
 │  算术强度从 0.125 跃升到 2 FLOP/B。瓶颈转移：Global 加载延迟 + barrier
 │
 ├─ cp.async Double Buffering (BK=16)
-│  8.00 TFLOPS, 49.4% (+3%)
+│  7.54 TFLOPS, 47% (+5%)  现代码含 LDS.128 → 8.00
 │  加载与计算开始重叠。SM Busy 首次达到 50%
 │
-├─ LDS.128 + __launch_bounds__ ← CUDA Core ceiling
-│  8.00 TFLOPS, 49.4% (+0%)
+├─ LDS.128 + __launch_bounds__ ← 跨 kernel 微调
+│  RegTile +6.4%, DB Async +4.2%
 │  Shared Memory Load 指令减少 4x，IPC 达 1.97
 │
 ├─ WMMA TF32 Tensor Core (BK=16)
