@@ -42,19 +42,22 @@ run_ncu.bat
 
 ```
 ops_cuda_gemm/
-├── gemm_kernels.cu              # Level 1-4,7: Naive→RegTile, LDS.128
-├── gemm_kernels_async.cu        # Level 5,7: cp.async DB, LDS.128
-├── gemm_kernels_tc.cu           # Level 6: WMMA TF32 Tensor Core
-├── gemm_kernels_tc_async.cu     # Level 8: WMMA + cp.async
-├── gemm_wrapper.cpp             # pybind11 bridge (7 functions, 8 levels)
-├── setup.py                     # torch CUDAExtension build
-├── benchmark.py                 # Performance test suite (8 sizes, CSV output)
-├── profile_kernel.py            # Minimal script for NCU profiling
-├── run_ncu.bat                  # Batch NCU profiler (timestamped outputs)
+├── src/
+│   ├── gemm_kernels.cu              # Level 1-4,7: Naive→RegTile, LDS.128
+│   ├── gemm_kernels_async.cu        # Level 5,7: cp.async DB, LDS.128
+│   ├── gemm_kernels_tc.cu           # Level 6: WMMA TF32 Tensor Core
+│   ├── gemm_kernels_tc_async.cu     # Level 8: WMMA + cp.async
+│   └── gemm_wrapper.cpp             # pybind11 bridge (7 functions, 8 levels)
+├── bench/
+│   ├── benchmark.py                 # Performance test suite (8 sizes, CSV output)
+│   ├── profile_kernel.py            # Minimal script for NCU profiling
+│   └── run_ncu.bat                  # Batch NCU profiler (timestamped outputs)
 ├── docs/
-│   └── optimization_strategy.md # Full optimization doc (14 chapters, 21 interview Q&A)
-├── profiles/                    # NCU .ncu-rep outputs
-└── results/                     # Benchmark CSV outputs (timestamped)
+│   └── optimization_strategy.md     # Full optimization doc (14 chapters, 21 interview Q&A)
+├── profiles/                        # NCU .ncu-rep outputs
+├── results/                         # Benchmark CSV outputs (timestamped)
+├── setup.py                         # torch CUDAExtension build
+└── README.md
 ```
 
 ## Optimization Journey

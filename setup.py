@@ -7,11 +7,11 @@ setup(
         CUDAExtension(
             name='gemm_ops',
             sources=[
-                'gemm_kernels.cu',
-                'gemm_kernels_async.cu',
-                'gemm_kernels_tc.cu',
-                'gemm_kernels_tc_async.cu',
-                'gemm_wrapper.cpp'
+                'src/gemm_kernels.cu',
+                'src/gemm_kernels_async.cu',
+                'src/gemm_kernels_tc.cu',
+                'src/gemm_kernels_tc_async.cu',
+                'src/gemm_wrapper.cpp'
             ],
             extra_compile_args={
                 'cxx': ['-O3'],
