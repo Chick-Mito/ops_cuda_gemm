@@ -1,6 +1,7 @@
 """Minimal script for NCU profiling — runs one kernel at one size."""
-import os; os.add_dll_directory(r"D:\anaconda\envs\ainfra\lib\site-packages\torch\lib")
-import torch, sys
+import os, sys; os.add_dll_directory(r"D:\anaconda\envs\ainfra\lib\site-packages\torch\lib")
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import torch
 
 kernel_name = sys.argv[1]
 M = K = N = 1024  # Standard profiling size

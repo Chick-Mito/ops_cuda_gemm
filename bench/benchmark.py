@@ -6,7 +6,10 @@ multiple matrix sizes. Uses torch.cuda.Event for precise GPU timing.
 import torch
 import csv
 import os
+import sys
 from datetime import datetime
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Ensure torch DLLs are in the search path for gemm_ops.pyd
 os.add_dll_directory(r"D:\anaconda\envs\ainfra\lib\site-packages\torch\lib")
