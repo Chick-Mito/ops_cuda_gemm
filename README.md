@@ -11,14 +11,14 @@ Hand-rolled CUDA GEMM (SGEMM) optimization from scratch — 8 optimization level
 | 1 | Naive | Global Memory | 128.3 ms | 1.07 | 1.0x |
 | 2 | Shared | SMEM Tiling 32x32 | 104.4 ms | 1.32 | 1.2x |
 | 3 | Float4 | + LDG.128 vectorized load | 104.3 ms | 1.32 | 1.2x |
-| 4 | RegTile | Register Tiling (64 accum) | 17.7 ms | 7.78 | 7.3x |
-| 5 | DB Async | + cp.async Double Buffering | 17.2 ms | 8.00 | 7.5x |
+| 4 | RegTile | Register Tiling (64 accum) | 17.7 ms | 7.78* | 7.3x |
+| 5 | DB Async | + cp.async Double Buffering | 17.2 ms | 8.00* | 7.5x |
 | 6 | WMMA TC | TF32 Tensor Core | 17.3 ms | 7.95 | 7.4x |
-| 7 | LDS.128+LB | SMEM vectorized load + launch bounds | 17.2 ms | 8.00 | 7.5x |
+| 7 | LDS.128+LB | SMEM vectorized load + launch bounds | — | +2~6% | — |
 | 8 | WMMA+DB | Tensor Core + cp.async | 17.0 ms | **8.10** | 7.6x |
 | — | **cuBLAS** | Tensor Core + SASS | 12.5 ms | 11.0 | 10.3x |
 
-> Levels 1-4→7 share `gemm_kernels.cu`. Level 5→7 shares `gemm_kernels_async.cu`. Level 6 in `gemm_kernels_tc.cu`. Level 8 in `gemm_kernels_tc_async.cu`.
+> *Level 4-5 当前值含 LDS.128（Level 7 优化已直接写入源码）。原始值：RegTile 7.19, DB Async 7.54。Level 7 无独立 kernel——是跨 kernel 微调 pass。Level 1-4→7 在 `src/gemm_kernels.cu`，Level 5→7 在 `src/gemm_kernels_async.cu`，Level 6 在 `src/gemm_kernels_tc.cu`，Level 8 在 `src/gemm_kernels_tc_async.cu`。
 
 ## Quick Start
 
@@ -63,24 +63,24 @@ ops_cuda_gemm/
 ## Optimization Journey
 
 ```
-1.1 TFLOPS ─ Naive global memory
-    │
-1.3 TFLOPS ─ Shared Memory Tiling (32×32 tiles)
-    │
-1.3 TFLOPS ─ Float4 LDG.128 (bottleneck shifted — Amdahl's Law)
-    │
-7.8 TFLOPS ─ Register Tiling (64 accum/thread, TM=TN=8) ← breakthrough
-    │
-8.0 TFLOPS ─ cp.async Double Buffering (load + compute overlap)
-    │
-8.0 TFLOPS ─ LDS.128 + __launch_bounds__ ← CUDA Core ceiling
-    │
-8.0 TFLOPS ─ WMMA TF32 Tensor Core (92% warp stall on barrier)
-    │
-8.1 TFLOPS ─ WMMA + cp.async (modest gain, barrier still dominates)
+1.07 TFLOPS ─ Naive global memory
+     │
+1.32 TFLOPS ─ Shared Memory Tiling (32×32 tiles)
+     │
+1.32 TFLOPS ─ Float4 LDG.128 (bottleneck shifted — Amdahl's Law)
+     │
+7.19 TFLOPS ─ Register Tiling (64 accum/thread, TM=TN=8) ← breakthrough
+     │          (current code with LDS.128: 7.78)
+7.54 TFLOPS ─ cp.async Double Buffering (load + compute overlap)
+     │          (current code with LDS.128: 8.00)
+     │  + LDS.128 + __launch_bounds__ ─ cross-cutting micro-opt (+2~6%)
+     │
+7.95 TFLOPS ─ WMMA TF32 Tensor Core (92% warp stall on barrier)
+     │
+8.10 TFLOPS ─ WMMA + cp.async (CUDA Core and Tensor Core finally converge)
 ```
 
-> 8 optimization levels, 7 kernel functions. Level 7 (LDS.128) is a cross-cutting optimization applied to existing kernels in `gemm_kernels.cu` and `gemm_kernels_async.cu`.
+> 8 optimization levels, 7 kernel functions. Level 7 (LDS.128) is a cross-cutting pass applied to existing kernels — no new kernel created.
 
 ## Nsight Compute Analysis
 
@@ -94,7 +94,7 @@ ops_cuda_gemm/
 | WMMA TC | 19.3% | 0.32 | **91.9%** | 66.1% | 16.6% |
 | WMMA+DB | 19.0% | 0.40 | 90.1% | 60.4% | 17.8% |
 
-Full per-kernel NCU breakdown in `docs/optimization_strategy.md` Chapter 12.
+Full per-kernel NCU breakdown in `docs/optimization_strategy.md` Chapter 13.
 
 ## Key Findings
 
@@ -106,7 +106,7 @@ Full per-kernel NCU breakdown in `docs/optimization_strategy.md` Chapter 12.
 
 `docs/optimization_strategy.md` — 14 chapters covering:
 - GPU memory hierarchy, Roofline model
-- 7 optimization levels with full code walkthrough
+- 8 optimization levels with full code walkthrough
 - 21 interview-style questions with detailed Chinese answer scripts
 - NCU profiling analysis across all kernels
 - cuBLAS gap deep-dive
