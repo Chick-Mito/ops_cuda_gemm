@@ -2,21 +2,21 @@
 
 Hand-rolled CUDA GEMM (SGEMM) optimization from scratch — 8 optimization levels, 7 kernel functions, from naive to Tensor Core, on a single RTX 3060 Ti.
 
-**7.86 TFLOPS, 48.5% FP32 peak** on consumer Ampere hardware.
+**8.10 TFLOPS, 50.0% FP32 peak** on consumer Ampere hardware.
 
 ## Performance (4096x4096 FP32)
 
 | Level | Kernel | Technology | Time | TFLOPS | Speedup |
 |-------|--------|-----------|------|--------|---------|
-| 1 | Naive | Global Memory | 131.6 ms | 1.04 | 1.0x |
-| 2 | Shared | SMEM Tiling 32x32 | 103.4 ms | 1.33 | 1.3x |
-| 3 | Float4 | + LDG.128 vectorized load | 102.5 ms | 1.34 | 1.3x |
-| 4 | RegTile | Register Tiling (64 accum) | 18.0 ms | 7.64 | 7.3x |
-| 5 | DB Async | + cp.async Double Buffering | 17.6 ms | 7.83 | 7.5x |
-| 6 | WMMA TC | TF32 Tensor Core | 17.7 ms | 7.75 | 7.4x |
-| 7 | LDS.128+LB | SMEM vectorized load + launch bounds | 17.5 ms | 7.86 | 7.7x |
-| 8 | WMMA+DB | Tensor Core + cp.async | 17.5 ms | 7.74 | 7.5x |
-| — | **cuBLAS** | Tensor Core + SASS | 12.5 ms | 11.0 | 10.7x |
+| 1 | Naive | Global Memory | 128.3 ms | 1.07 | 1.0x |
+| 2 | Shared | SMEM Tiling 32x32 | 104.4 ms | 1.32 | 1.2x |
+| 3 | Float4 | + LDG.128 vectorized load | 104.3 ms | 1.32 | 1.2x |
+| 4 | RegTile | Register Tiling (64 accum) | 17.7 ms | 7.78 | 7.3x |
+| 5 | DB Async | + cp.async Double Buffering | 17.2 ms | 8.00 | 7.5x |
+| 6 | WMMA TC | TF32 Tensor Core | 17.3 ms | 7.95 | 7.4x |
+| 7 | LDS.128+LB | SMEM vectorized load + launch bounds | 17.2 ms | 8.00 | 7.5x |
+| 8 | WMMA+DB | Tensor Core + cp.async | 17.0 ms | **8.10** | 7.6x |
+| — | **cuBLAS** | Tensor Core + SASS | 12.5 ms | 11.0 | 10.3x |
 
 > Levels 1-4→7 share `gemm_kernels.cu`. Level 5→7 shares `gemm_kernels_async.cu`. Level 6 in `gemm_kernels_tc.cu`. Level 8 in `gemm_kernels_tc_async.cu`.
 
@@ -63,21 +63,21 @@ ops_cuda_gemm/
 ## Optimization Journey
 
 ```
-1.0 TFLOPS ─ Naive global memory
+1.1 TFLOPS ─ Naive global memory
     │
 1.3 TFLOPS ─ Shared Memory Tiling (32×32 tiles)
     │
 1.3 TFLOPS ─ Float4 LDG.128 (bottleneck shifted — Amdahl's Law)
     │
-7.2 TFLOPS ─ Register Tiling (64 accum/thread, TM=TN=8) ← breakthrough
+7.8 TFLOPS ─ Register Tiling (64 accum/thread, TM=TN=8) ← breakthrough
     │
-7.5 TFLOPS ─ cp.async Double Buffering (load + compute overlap)
+8.0 TFLOPS ─ cp.async Double Buffering (load + compute overlap)
     │
-7.9 TFLOPS ─ LDS.128 + __launch_bounds__ ← CUDA Core ceiling
+8.0 TFLOPS ─ LDS.128 + __launch_bounds__ ← CUDA Core ceiling
     │
-7.6 TFLOPS ─ WMMA TF32 Tensor Core (92% warp stall on barrier)
+8.0 TFLOPS ─ WMMA TF32 Tensor Core (92% warp stall on barrier)
     │
-7.7 TFLOPS ─ WMMA + cp.async (modest gain, barrier still dominates)
+8.1 TFLOPS ─ WMMA + cp.async (modest gain, barrier still dominates)
 ```
 
 > 8 optimization levels, 7 kernel functions. Level 7 (LDS.128) is a cross-cutting optimization applied to existing kernels in `gemm_kernels.cu` and `gemm_kernels_async.cu`.
@@ -98,9 +98,9 @@ Full per-kernel NCU breakdown in `docs/optimization_strategy.md` Chapter 12.
 
 ## Key Findings
 
-- **CUDA Core ceiling**: 7.86 TFLOPS (48.5% FP32 peak). IPC 1.97 hits Ampere dual-issue limit. Remaining 50% SM idle is shared memory latency + barrier sync.
+- **CUDA Core ceiling**: 8.00 TFLOPS (49.4% FP32 peak). IPC 1.97 hits Ampere dual-issue limit. Remaining 50% SM idle is shared memory latency + barrier sync.
 - **Tensor Core bottleneck**: Not compute — it's `__syncthreads()`. 92% warp idle. WMMA `load_matrix_sync` + barrier serialization starves the Tensor Cores.
-- **cuBLAS gap (11.0 vs 7.86)**: cuBLAS uses hand-tuned SASS assembly, 3-4 stage cp.async pipeline, XOR swizzle, and async barriers — none of which are practical to replicate in hand-written CUDA C++.
+- **cuBLAS gap (11.0 vs 8.10)**: cuBLAS uses hand-tuned SASS assembly, 3-4 stage cp.async pipeline, XOR swizzle, and async barriers — none of which are practical to replicate in hand-written CUDA C++.
 
 ## Documentation
 
