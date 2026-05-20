@@ -1,5 +1,7 @@
 # ops_cuda_gemm
 
+[中文版](README_CN.md)
+
 Hand-rolled CUDA GEMM (SGEMM) optimization from scratch — 8 optimization levels, 7 kernel functions, from naive to Tensor Core, on a single RTX 3060 Ti.
 
 **8.10 TFLOPS, 50.0% FP32 peak** on consumer Ampere hardware.
